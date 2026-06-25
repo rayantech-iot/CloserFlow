@@ -17,6 +17,30 @@ export async function POST(request: Request) {
 
     const name = displayName || email.split("@")[0] || "Utilisateur";
 
+    // Vérifier si l'utilisateur a déjà une organisation (profil existant)
+    const { data: existing } = await supabase
+      .from("profiles")
+      .select("organization_id")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (existing?.organization_id) {
+      return NextResponse.json({ success: true });
+    }
+
+    // Créer une organisation pour le nouvel utilisateur
+    const slug = "org-" + userId.replace(/-/g, "").slice(0, 12);
+    const { data: org, error: orgError } = await supabase
+      .from("organizations")
+      .insert({ name: `Boutique de ${name}`, slug })
+      .select("id")
+      .single();
+
+    if (orgError) {
+      return NextResponse.json({ error: orgError.message }, { status: 500 });
+    }
+
+    // Créer le profil rattaché à l'organisation
     await supabase.from("profiles").insert({
       id: userId,
       email,
@@ -24,6 +48,7 @@ export async function POST(request: Request) {
       role: "admin",
       active: true,
       country: "",
+      organization_id: org.id,
     });
 
     return NextResponse.json({ success: true });
