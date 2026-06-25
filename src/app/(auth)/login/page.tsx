@@ -152,7 +152,7 @@ export default function LoginPage() {
             <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">Nom de l'organisation</label>
-                <Input placeholder="Ex: Boutique Clara" {...registerForm.register("organizationName")} />
+                <Input placeholder="Ex: Boutique Rose Éternelle" {...registerForm.register("organizationName")} />
                 {registerForm.formState.errors.organizationName && (
                   <p className="text-xs text-red-400">{registerForm.formState.errors.organizationName.message}</p>
                 )}
