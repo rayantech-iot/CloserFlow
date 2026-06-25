@@ -71,6 +71,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) {
       setProfile(data);
       if (data.country) setCountryState(data.country);
+    } else {
+      // Nouvel utilisateur (Google OAuth) — créer le profil
+      const { data: user } = await supabase.auth.getUser();
+      if (user?.user?.email) {
+        await fetch("/api/auth/create-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId,
+            email: user.user.email,
+            displayName: user.user.user_metadata?.full_name || user.user.user_metadata?.name || "",
+          }),
+        });
+        // Recharger le profil
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
+        if (newProfile) {
+          setProfile(newProfile);
+          if (newProfile.country) setCountryState(newProfile.country);
+        }
+      }
     }
   };
 
@@ -94,12 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${origin}/api/auth/callback`,
-      },
     });
     if (error) throw error;
   };
