@@ -159,7 +159,7 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">Votre nom</label>
-                <Input placeholder="Ex: Clara" {...registerForm.register("displayName")} />
+                <Input placeholder="Ex: Jean" {...registerForm.register("displayName")} />
                 {registerForm.formState.errors.displayName && (
                   <p className="text-xs text-red-400">{registerForm.formState.errors.displayName.message}</p>
                 )}
