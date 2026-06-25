@@ -45,11 +45,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let resolved = false;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u) fetchProfile(u.id);
-      setLoading(false);
+
+      // Si l'URL a des paramètres d'auth (callback OAuth), ne pas arrêter le loading
+      // tant que onAuthStateChange n'a pas confirmé la session
+      const hasAuthParams =
+        window.location.hash.includes("access_token") ||
+        window.location.search.includes("code=");
+      if (!hasAuthParams || u) {
+        setLoading(false);
+        resolved = true;
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -57,9 +68,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(u);
       if (u) fetchProfile(u.id);
       else setProfile(null);
+      if (!resolved) {
+        setLoading(false);
+        resolved = true;
+      }
     });
 
-    return () => subscription.unsubscribe();
+    // Timeout de sécurité (15s) pour ne pas rester bloqué
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        setLoading(false);
+        resolved = true;
+      }
+    }, 15000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const fetchProfile = async (userId: string) => {

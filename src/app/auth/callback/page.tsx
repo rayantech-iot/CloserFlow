@@ -2,21 +2,35 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/providers/auth-provider";
+import { supabase } from "@/lib/supabase";
 
 export default function AuthCallback() {
-  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (user) {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+
+    const finish = async () => {
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          router.push("/login?error=auth");
+          return;
+        }
+      }
+
+      // Vérifier que la session est bien établie
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
         router.push("/dashboard");
       } else {
         router.push("/login");
       }
-    }
-  }, [user, loading, router]);
+    };
+
+    finish();
+  }, [router]);
 
   return (
     <div className="flex h-screen items-center justify-center bg-[#030712]">
