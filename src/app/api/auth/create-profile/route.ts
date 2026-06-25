@@ -17,10 +17,10 @@ export async function POST(request: Request) {
 
     const name = displayName || email.split("@")[0] || "Utilisateur";
 
-    // Vérifier si l'utilisateur a déjà une organisation (profil existant)
+    // Vérifier si l'utilisateur a déjà un profil
     const { data: existing } = await supabase
       .from("profiles")
-      .select("organization_id")
+      .select("id, organization_id")
       .eq("id", userId)
       .maybeSingle();
 
@@ -40,16 +40,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: orgError.message }, { status: 500 });
     }
 
-    // Créer le profil rattaché à l'organisation
-    await supabase.from("profiles").insert({
-      id: userId,
-      email,
-      display_name: name,
-      role: "admin",
-      active: true,
-      country: "",
-      organization_id: org.id,
-    });
+    if (existing) {
+      // Profil existe déjà (sans org) → mettre à jour
+      await supabase.from("profiles").update({
+        role: "admin",
+        organization_id: org.id,
+      }).eq("id", userId);
+    } else {
+      // Nouveau profil
+      await supabase.from("profiles").insert({
+        id: userId,
+        email,
+        display_name: name,
+        role: "admin",
+        active: true,
+        country: "",
+        organization_id: org.id,
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
