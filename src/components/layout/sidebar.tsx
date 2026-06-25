@@ -1,0 +1,231 @@
+"use client";
+
+import { cn } from "@/lib/utils";
+import {
+  LayoutDashboard,
+  Package,
+  Inbox,
+  BarChart3,
+  Users,
+  UserCircle,
+  LogOut,
+  X,
+  FileSpreadsheet,
+  Menu,
+  Globe,
+  Building2,
+} from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/providers/auth-provider";
+import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import { supabase, isSupabaseReady } from "@/lib/supabase";
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const { isAdmin, isSuperAdmin, logout, profile, country, setCountry } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [countries, setCountries] = useState<string[]>([]);
+  const [orgName, setOrgName] = useState("");
+
+  useEffect(() => {
+    if (!isAdmin || !isSupabaseReady) return;
+    supabase
+      .from("orders")
+      .select("country")
+      .not("country", "eq", "")
+      .then(({ data }) => {
+        if (!data) return;
+        const unique = [...new Set(data.map((r: any) => r.country).filter(Boolean))] as string[];
+        setCountries(unique.sort());
+      });
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!profile?.organization_id || !isSupabaseReady) return;
+    supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", profile.organization_id)
+      .single()
+      .then(({ data }) => {
+        if (data) setOrgName(data.name);
+      });
+  }, [profile?.organization_id]);
+
+  const navigation = [
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Boîte de réception", href: "/inbox", icon: Inbox },
+    { name: "Commandes", href: "/orders", icon: Package },
+    { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet },
+    { name: "Statistiques", href: "/stats", icon: BarChart3 },
+    { name: "Utilisateurs", href: "/users", icon: Users, adminOnly: true },
+    ...(isSuperAdmin ? [{ name: "Organisations", href: "/admin/organizations", icon: Building2 }] : []),
+    { name: "Profil", href: "/profile", icon: UserCircle },
+  ];
+
+  const links = navigation.filter((item) => !item.adminOnly || isAdmin);
+
+  const NavItems = ({ mobile }: { mobile?: boolean }) => (
+    <>
+      {links.map((item) => {
+        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setMobileOpen(false)}
+            className={cn(
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+              isActive
+                ? "bg-blue-600/10 text-blue-400"
+                : "text-gray-400 hover:bg-gray-800/50 hover:text-gray-200",
+              mobile && "text-base py-3"
+            )}
+          >
+            <item.icon className="h-5 w-5 flex-shrink-0" />
+            <span>{item.name}</span>
+          </Link>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-gray-800 bg-gray-950 transition-transform duration-300 w-64",
+          "lg:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex h-14 items-center justify-between border-b border-gray-800 px-4">
+          <span className="text-lg font-bold tracking-tight text-white">
+            Closer<span className="text-blue-500">Flow</span>
+          </span>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileOpen(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <nav className="flex-1 space-y-1 p-3">
+          <NavItems mobile />
+        </nav>
+        <div className="border-t border-gray-800 p-3 space-y-2">
+          {isAdmin && orgName && (
+            <div className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
+              <Building2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">{orgName}</span>
+            </div>
+          )}
+          {isAdmin && countries.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400">
+              <Globe className="h-4 w-4 shrink-0" />
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="flex-1 bg-transparent border-none outline-none text-gray-200 text-sm cursor-pointer"
+              >
+                <option value="">Tous les pays</option>
+                {countries.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!isAdmin && country && (
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
+              <Globe className="h-3 w-3" />
+              Équipe : {country}
+            </div>
+          )}
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 px-3 py-1">
+              <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400 font-medium">
+                Super Admin
+              </span>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            onClick={logout}
+            className="w-full justify-start text-gray-400 hover:text-red-400"
+          >
+            <LogOut className="h-5 w-5 flex-shrink-0" />
+            <span className="ml-3">Déconnexion</span>
+          </Button>
+        </div>
+      </aside>
+
+      <aside className="fixed left-0 top-0 z-30 hidden h-screen flex-col border-r border-gray-800 bg-gray-950/95 backdrop-blur-xl w-60 lg:flex">
+        <div className="flex h-14 items-center border-b border-gray-800 px-4">
+          <span className="text-lg font-bold tracking-tight text-white">
+            Closer<span className="text-blue-500">Flow</span>
+          </span>
+        </div>
+        <nav className="flex-1 space-y-1 p-2">
+          <NavItems />
+        </nav>
+        <div className="border-t border-gray-800 p-2 space-y-1">
+          {isAdmin && orgName && (
+            <div className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
+              <Building2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">{orgName}</span>
+            </div>
+          )}
+          {isAdmin && countries.length > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 rounded-lg hover:bg-gray-800/30">
+              <Globe className="h-4 w-4 shrink-0" />
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="flex-1 bg-transparent border-none outline-none text-gray-200 text-sm cursor-pointer"
+              >
+                <option value="">Tous les pays</option>
+                {countries.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!isAdmin && country && (
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
+              <Globe className="h-3 w-3" />
+              Équipe : {country}
+            </div>
+          )}
+          {isSuperAdmin && (
+            <div className="flex items-center gap-2 px-3 py-1">
+              <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400 font-medium">
+                Super Admin
+              </span>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            onClick={logout}
+            className="w-full justify-start text-gray-400 hover:text-red-400"
+          >
+            <LogOut className="h-5 w-5 flex-shrink-0" />
+            <span className="ml-3">Déconnexion</span>
+          </Button>
+        </div>
+      </aside>
+
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-4 top-3.5 z-20 flex h-8 w-8 items-center justify-center rounded-lg bg-gray-800 text-gray-300 lg:hidden"
+      >
+        <Menu className="h-4 w-4" />
+      </button>
+    </>
+  );
+}
