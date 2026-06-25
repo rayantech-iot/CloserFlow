@@ -39,6 +39,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [country, setCountryState] = useState("");
   const router = useRouter();
 
+  const fetchProfile = async (userId: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (data) {
+      setProfile(data);
+      if (data.country) setCountryState(data.country);
+      return data;
+    }
+    // Nouvel utilisateur (Google OAuth) — créer le profil
+    const { data: user } = await supabase.auth.getUser();
+    if (user?.user?.email) {
+      const res = await fetch("/api/auth/create-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          email: user.user.email,
+          displayName: user.user.user_metadata?.full_name || user.user.user_metadata?.name || "",
+        }),
+      });
+      if (res.ok) {
+        const { data: newProfile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single();
+        if (newProfile) {
+          setProfile(newProfile);
+          if (newProfile.country) setCountryState(newProfile.country);
+          return newProfile;
+        }
+      }
+    }
+    return null;
+  };
+
   useEffect(() => {
     if (!isSupabaseReady) {
       setLoading(false);
@@ -47,13 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let resolved = false;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) fetchProfile(u.id);
+      if (u) await fetchProfile(u.id);
 
-      // Si l'URL a des paramètres d'auth (callback OAuth), ne pas arrêter le loading
-      // tant que onAuthStateChange n'a pas confirmé la session
       const hasAuthParams =
         window.location.hash.includes("access_token") ||
         window.location.search.includes("code=");
@@ -63,10 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) fetchProfile(u.id);
+      if (u) await fetchProfile(u.id);
       else setProfile(null);
       if (!resolved) {
         setLoading(false);
@@ -74,7 +111,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Timeout de sécurité (15s) pour ne pas rester bloqué
     const timeout = setTimeout(() => {
       if (!resolved) {
         setLoading(false);
@@ -87,42 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeout);
     };
   }, []);
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      setProfile(data);
-      if (data.country) setCountryState(data.country);
-    } else {
-      // Nouvel utilisateur (Google OAuth) — créer le profil
-      const { data: user } = await supabase.auth.getUser();
-      if (user?.user?.email) {
-        await fetch("/api/auth/create-profile", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId,
-            email: user.user.email,
-            displayName: user.user.user_metadata?.full_name || user.user.user_metadata?.name || "",
-          }),
-        });
-        // Recharger le profil
-        const { data: newProfile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
-        if (newProfile) {
-          setProfile(newProfile);
-          if (newProfile.country) setCountryState(newProfile.country);
-        }
-      }
-    }
-  };
 
   const setCountry = useCallback((c: string) => {
     setCountryState(c);
