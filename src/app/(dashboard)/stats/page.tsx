@@ -20,6 +20,7 @@ export default function StatsPage() {
   const { isAdmin, country } = useAuth();
   const router = useRouter();
   const [closerStats, setCloserStats] = useState<CloserStatsEntry[]>([]);
+  const [totalOrders, setTotalOrders] = useState(0);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState(getDefaultDates().from);
   const [dateTo, setDateTo] = useState(getDefaultDates().to);
@@ -34,8 +35,12 @@ export default function StatsPage() {
       if (dateFrom) params.date_from = new Date(dateFrom).toISOString();
       if (dateTo) params.date_to = new Date(dateTo + "T23:59:59").toISOString();
 
-      const { data } = await supabase.rpc("get_closer_stats", params);
-      setCloserStats((data || []) as CloserStatsEntry[]);
+      const [closerRes, countRes] = await Promise.all([
+        supabase.rpc("get_closer_stats", params),
+        supabase.from("orders").select("*", { count: "exact", head: true }).then(({ count }) => count || 0),
+      ]);
+      setCloserStats((closerRes.data || []) as CloserStatsEntry[]);
+      setTotalOrders(countRes);
       setLoading(false);
     };
     fetchStats();
@@ -79,7 +84,7 @@ export default function StatsPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -88,6 +93,19 @@ export default function StatsPage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-400">Total commandes</p>
+                  <p className="text-xl font-bold text-white">{totalOrders}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-500/10">
+                  <Users className="h-5 w-5 text-indigo-500" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Assignées aux closers</p>
                   <p className="text-xl font-bold text-white">{totals.total}</p>
                 </div>
               </div>
