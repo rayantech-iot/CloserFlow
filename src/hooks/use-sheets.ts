@@ -13,7 +13,13 @@ export function useSheetsConfigs() {
   return useQuery({
     queryKey: ["sheets-configs"],
     queryFn: async () => {
-      const { data } = await supabase.from("sheets_config").select("*").order("created_at", { ascending: false });
+      const token = (await supabase.auth.getSession()).data?.session?.access_token;
+      if (!token) return [];
+      const res = await fetch("/api/sheets", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
       return (data || []) as SheetsConfigRow[];
     },
     enabled: isSupabaseReady,

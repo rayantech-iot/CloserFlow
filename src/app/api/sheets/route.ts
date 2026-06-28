@@ -4,11 +4,31 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
-function getAdmin(token: string) {
-  const client = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  return client.auth.getUser(token).then(({ data, error }) => error ? null : data.user);
+const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+
+async function getAuthedUser(token: string) {
+  const { data } = await supabase.auth.getUser(token);
+  return data?.user || null;
+}
+
+export async function GET(request: Request) {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  }
+
+  const user = await getAuthedUser(authHeader.slice(7));
+  if (!user) return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+
+  const { data, error } = await supabase
+    .from("sheets_config")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json(data || []);
 }
 
 export async function POST(request: Request) {
@@ -17,12 +37,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const user = await getAdmin(authHeader.slice(7));
+  const user = await getAuthedUser(authHeader.slice(7));
   if (!user) return NextResponse.json({ error: "Token invalide" }, { status: 401 });
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   try {
     const body = await request.json();
@@ -54,12 +70,8 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
-  const user = await getAdmin(authHeader.slice(7));
+  const user = await getAuthedUser(authHeader.slice(7));
   if (!user) return NextResponse.json({ error: "Token invalide" }, { status: 401 });
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
 
   try {
     const { id } = await request.json();
