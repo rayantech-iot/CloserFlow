@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 });
   }
   try {
-    const { email, password, displayName, role, phone, country, organizationId, teamId } = await request.json();
+    const { email, password, displayName, role, phone, country, teamId } = await request.json();
 
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       role: role || "closer",
       phone: phone || "",
       country: country || "",
-      organization_id: organizationId || null,
+      organization_id: null,
       team_id: teamId || null,
       active: true,
     });
@@ -61,13 +61,12 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 });
   }
   try {
-    const { userId, displayName, role, active, country, organizationId, teamId } = await request.json();
+    const { userId, displayName, role, active, country, teamId } = await request.json();
     const updates: any = {};
     if (displayName !== undefined) updates.display_name = displayName;
     if (role !== undefined) updates.role = role;
     if (active !== undefined) updates.active = active;
     if (country !== undefined) updates.country = country;
-    if (organizationId !== undefined) updates.organization_id = organizationId || null;
     if (teamId !== undefined) updates.team_id = teamId || null;
 
     const { error } = await supabaseAdmin.from("profiles").update(updates).eq("id", userId);

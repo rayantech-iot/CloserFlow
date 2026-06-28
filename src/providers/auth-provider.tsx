@@ -18,9 +18,7 @@ interface AuthContextType {
   profile: ProfileRow | null;
   loading: boolean;
   isAdmin: boolean;
-  isSuperAdmin: boolean;
   role: UserRole | null;
-  organizationId: string | null;
   country: string;
   setCountry: (c: string) => void;
   login: (email: string, password: string) => Promise<void>;
@@ -132,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (profile && (profile.role === "admin" || profile.role === "super_admin")) {
+    if (profile && profile.role === "admin") {
       const saved = localStorage.getItem("closerflow_country");
       if (saved) setCountryState(saved);
     }
@@ -169,9 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const role = profile?.role ?? null;
-  const isAdmin = role === "admin" || role === "super_admin";
-  const isSuperAdmin = role === "super_admin";
-  const organizationId = profile?.organization_id ?? null;
+  const isAdmin = role === "admin";
 
   return (
     <AuthContext.Provider
@@ -180,9 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         isAdmin,
-        isSuperAdmin,
         role,
-        organizationId,
         country,
         setCountry,
         login,

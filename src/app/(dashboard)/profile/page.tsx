@@ -56,7 +56,7 @@ export default function ProfilePage() {
                   <Shield className="h-4 w-4" /> Rôle
                 </div>
                 <p className="font-medium text-white capitalize">
-                  {profile?.role === "super_admin" ? "Super Administrateur" : profile?.role === "admin" ? "Administrateur" : "Closer"}
+                  {profile?.role === "admin" ? "Administrateur" : "Closer"}
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-gray-800/30">

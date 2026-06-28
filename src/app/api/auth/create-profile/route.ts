@@ -20,44 +20,23 @@ export async function POST(request: Request) {
     // Vérifier si l'utilisateur a déjà un profil
     const { data: existing } = await supabase
       .from("profiles")
-      .select("id, organization_id")
+      .select("id")
       .eq("id", userId)
       .maybeSingle();
 
-    if (existing?.organization_id) {
+    if (existing) {
       return NextResponse.json({ success: true });
     }
 
-    // Créer une organisation pour le nouvel utilisateur
-    const slug = "org-" + userId.replace(/-/g, "").slice(0, 12);
-    const { data: org, error: orgError } = await supabase
-      .from("organizations")
-      .insert({ name: `Boutique de ${name}`, slug })
-      .select("id")
-      .single();
-
-    if (orgError) {
-      return NextResponse.json({ error: orgError.message }, { status: 500 });
-    }
-
-    if (existing) {
-      // Profil existe déjà (sans org) → mettre à jour
-      await supabase.from("profiles").update({
-        role: "admin",
-        organization_id: org.id,
-      }).eq("id", userId);
-    } else {
-      // Nouveau profil
-      await supabase.from("profiles").insert({
-        id: userId,
-        email,
-        display_name: name,
-        role: "admin",
-        active: true,
-        country: "",
-        organization_id: org.id,
-      });
-    }
+    // Nouveau profil (admin par défaut)
+    await supabase.from("profiles").insert({
+      id: userId,
+      email,
+      display_name: name,
+      role: "admin",
+      active: true,
+      country: "",
+    });
 
     return NextResponse.json({ success: true });
   } catch (e: any) {

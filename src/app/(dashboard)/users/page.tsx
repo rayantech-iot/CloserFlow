@@ -28,7 +28,7 @@ const COUNTRIES = [
 ];
 
 export default function UsersPage() {
-  const { isAdmin, isSuperAdmin, organizationId } = useAuth();
+  const { isAdmin } = useAuth();
   const router = useRouter();
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [teams, setTeams] = useState<TeamRow[]>([]);
@@ -46,17 +46,10 @@ export default function UsersPage() {
 
   const fetchData = async () => {
     if (!isSupabaseReady) return;
-    let query = supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    if (!isSuperAdmin && organizationId) {
-      query = query.eq("organization_id", organizationId);
-    }
-    const { data: pData } = await query;
+    const { data: pData } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
     setProfiles(pData || []);
-
-    if (organizationId) {
-      const { data: tData } = await supabase.from("teams").select("*").eq("organization_id", organizationId).order("created_at");
-      setTeams(tData || []);
-    }
+    const { data: tData } = await supabase.from("teams").select("*").order("created_at");
+    setTeams(tData || []);
     setLoading(false);
   };
 
@@ -72,7 +65,7 @@ export default function UsersPage() {
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, role, organizationId }),
+      body: JSON.stringify({ ...form, role }),
     });
 
     const data = await res.json();
@@ -91,14 +84,8 @@ export default function UsersPage() {
   const createTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!organizationId) return;
-    const res = await fetch(`/api/organizations/${organizationId}/teams`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(teamForm),
-    });
-    const data = await res.json();
-    if (!res.ok) { setError(data.error); return; }
+    const { error } = await supabase.from("teams").insert(teamForm);
+    if (error) { setError(error.message); return; }
     setTeamForm({ name: "", country: "" });
     setTeamDialogOpen(false);
     fetchData();
@@ -106,7 +93,7 @@ export default function UsersPage() {
 
   const deleteTeam = async (teamId: string) => {
     if (!confirm("Supprimer cette équipe ?")) return;
-    await fetch(`/api/organizations/${organizationId}/teams/${teamId}`, { method: "DELETE" });
+    await supabase.from("teams").delete().eq("id", teamId);
     fetchData();
   };
 
@@ -144,7 +131,7 @@ export default function UsersPage() {
       <div className="p-4 lg:p-6 space-y-6">
 
         {/* Équipes */}
-        {isAdmin && organizationId && (
+        {isAdmin && (
           <section>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">

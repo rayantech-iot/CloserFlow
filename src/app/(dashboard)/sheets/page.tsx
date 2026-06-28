@@ -119,9 +119,9 @@ export default function SheetsPage() {
   useEffect(() => { autoSyncRef.current = autoSync; }, [autoSync]);
 
   useEffect(() => {
-    if (!profile?.organization_id || !isSupabaseReady) return;
-    supabase.from("teams").select("*").eq("organization_id", profile.organization_id).then(({ data }) => setTeams(data || []));
-  }, [profile?.organization_id]);
+    if (!isSupabaseReady) return;
+    supabase.from("teams").select("*").then(({ data }) => setTeams(data || []));
+  }, []);
 
   useEffect(() => {
     if (!autoSync) return;

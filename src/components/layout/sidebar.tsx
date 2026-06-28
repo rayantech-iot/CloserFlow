@@ -13,7 +13,6 @@ import {
   FileSpreadsheet,
   Menu,
   Globe,
-  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,10 +23,9 @@ import { supabase, isSupabaseReady } from "@/lib/supabase";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, isSuperAdmin, logout, profile, country, setCountry } = useAuth();
+  const { isAdmin, logout, profile, country, setCountry } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [countries, setCountries] = useState<string[]>([]);
-  const [orgName, setOrgName] = useState("");
 
   useEffect(() => {
     if (!isAdmin || !isSupabaseReady) return;
@@ -42,18 +40,6 @@ export function Sidebar() {
       });
   }, [isAdmin]);
 
-  useEffect(() => {
-    if (!profile?.organization_id || !isSupabaseReady) return;
-    supabase
-      .from("organizations")
-      .select("name")
-      .eq("id", profile.organization_id)
-      .single()
-      .then(({ data }) => {
-        if (data) setOrgName(data.name);
-      });
-  }, [profile?.organization_id]);
-
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Boîte de réception", href: "/inbox", icon: Inbox },
@@ -61,7 +47,6 @@ export function Sidebar() {
     { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet },
     { name: "Statistiques", href: "/stats", icon: BarChart3 },
     { name: "Utilisateurs", href: "/users", icon: Users, adminOnly: true },
-    ...(isSuperAdmin ? [{ name: "Organisations", href: "/admin/organizations", icon: Building2 }] : []),
     { name: "Profil", href: "/profile", icon: UserCircle },
   ];
 
@@ -120,12 +105,6 @@ export function Sidebar() {
           <NavItems mobile />
         </nav>
         <div className="border-t border-gray-800 p-3 space-y-2">
-          {isAdmin && orgName && (
-            <div className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
-              <Building2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{orgName}</span>
-            </div>
-          )}
           {isAdmin && countries.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400">
               <Globe className="h-4 w-4 shrink-0" />
@@ -145,13 +124,6 @@ export function Sidebar() {
             <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
               <Globe className="h-3 w-3" />
               Équipe : {country}
-            </div>
-          )}
-          {isSuperAdmin && (
-            <div className="flex items-center gap-2 px-3 py-1">
-              <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400 font-medium">
-                Super Admin
-              </span>
             </div>
           )}
           <Button
@@ -175,12 +147,6 @@ export function Sidebar() {
           <NavItems />
         </nav>
         <div className="border-t border-gray-800 p-2 space-y-1">
-          {isAdmin && orgName && (
-            <div className="flex items-center gap-2 px-3 py-1 text-xs text-gray-500">
-              <Building2 className="h-3 w-3 shrink-0" />
-              <span className="truncate">{orgName}</span>
-            </div>
-          )}
           {isAdmin && countries.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 rounded-lg hover:bg-gray-800/30">
               <Globe className="h-4 w-4 shrink-0" />
@@ -200,13 +166,6 @@ export function Sidebar() {
             <div className="flex items-center gap-2 px-3 py-2 text-xs text-gray-500">
               <Globe className="h-3 w-3" />
               Équipe : {country}
-            </div>
-          )}
-          {isSuperAdmin && (
-            <div className="flex items-center gap-2 px-3 py-1">
-              <span className="rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400 font-medium">
-                Super Admin
-              </span>
             </div>
           )}
           <Button

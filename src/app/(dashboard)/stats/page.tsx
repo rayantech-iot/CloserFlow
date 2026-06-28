@@ -17,7 +17,7 @@ function getDefaultDates() {
 }
 
 export default function StatsPage() {
-  const { isAdmin, isSuperAdmin, country, organizationId } = useAuth();
+  const { isAdmin, country } = useAuth();
   const router = useRouter();
   const [closerStats, setCloserStats] = useState<CloserStatsEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,23 +35,11 @@ export default function StatsPage() {
       if (dateTo) params.date_to = new Date(dateTo + "T23:59:59").toISOString();
 
       const { data } = await supabase.rpc("get_closer_stats", params);
-      let results = (data || []) as CloserStatsEntry[];
-
-      // Filtrer par organisation (sauf super admin)
-      if (!isSuperAdmin && organizationId) {
-        const { data: orgProfiles } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("organization_id", organizationId);
-        const orgUserIds = new Set(orgProfiles?.map((p: any) => p.id) || []);
-        results = results.filter((s) => orgUserIds.has(s.user_id));
-      }
-
-      setCloserStats(results);
+      setCloserStats((data || []) as CloserStatsEntry[]);
       setLoading(false);
     };
     fetchStats();
-  }, [isAdmin, router, isSuperAdmin, organizationId, country, dateFrom, dateTo]);
+  }, [isAdmin, router, country, dateFrom, dateTo]);
 
   const exportCSV = () => {
     const headers = ["Closer", "Pays", "Total", "Livrées", "Refusées", "Programmées", "Injoignables", "Taux liv.", "Temps moyen (h)"];
