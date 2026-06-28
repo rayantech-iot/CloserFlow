@@ -103,6 +103,7 @@ export default function SheetsPage() {
   const [autoSync, setAutoSync] = useState(true);
   const autoSyncRef = useRef(autoSync);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [addError, setAddError] = useState("");
 
   // Formulaire d'ajout
   const [form, setForm] = useState({ name: "", sheetUrl: "", country: "", teamId: "" });
@@ -169,20 +170,25 @@ export default function SheetsPage() {
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAddError("");
     const clean = { ...mapping };
     Object.keys(clean).forEach((k) => { if (!clean[k]) delete clean[k]; });
-    await addMutation.mutateAsync({
-      name: form.name,
-      sheet_url: form.sheetUrl,
-      country: form.country,
-      team_id: form.teamId || undefined,
-      column_mapping: Object.keys(clean).length > 0 ? clean : undefined,
-    });
-    setForm({ name: "", sheetUrl: "", country: "", teamId: "" });
-    setMapping({});
-    setSheetHeaders([]);
-    setPreviewRows([]);
-    setDialogOpen(false);
+    try {
+      await addMutation.mutateAsync({
+        name: form.name,
+        sheet_url: form.sheetUrl,
+        country: form.country,
+        team_id: form.teamId || undefined,
+        column_mapping: Object.keys(clean).length > 0 ? clean : undefined,
+      });
+      setForm({ name: "", sheetUrl: "", country: "", teamId: "" });
+      setMapping({});
+      setSheetHeaders([]);
+      setPreviewRows([]);
+      setDialogOpen(false);
+    } catch (err: any) {
+      setAddError(err.message || "Erreur lors de l'ajout");
+    }
   };
 
   const saveEditMapping = async (configId: string, newMapping: Record<string, string>) => {
@@ -365,6 +371,9 @@ export default function SheetsPage() {
                       </>
                     )}
 
+                    {addError && (
+                      <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-sm text-red-400">{addError}</div>
+                    )}
                     <Button type="submit" className="w-full" disabled={addMutation.isPending || detecting}>
                       {addMutation.isPending ? "Ajout..." : "Ajouter ce Sheet"}
                     </Button>

@@ -2,8 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase, isSupabaseReady } from "@/lib/supabase";
-import { useAuth } from "@/providers/auth-provider";
 import type { SheetsConfigRow } from "@/types";
+
+async function getToken(): Promise<string> {
+  const session = await supabase.auth.getSession();
+  return session?.data?.session?.access_token || "";
+}
 
 export function useSheetsConfigs() {
   return useQuery({
@@ -18,7 +22,6 @@ export function useSheetsConfigs() {
 
 export function useAddSheetConfig() {
   const queryClient = useQueryClient();
-  const { profile } = useAuth();
 
   return useMutation({
     mutationFn: async (config: {
@@ -29,34 +32,17 @@ export function useAddSheetConfig() {
       column_mapping?: Record<string, string>;
       team_id?: string;
     }) => {
-      if (!profile) throw new Error("Non autorisé");
+      const token = await getToken();
+      if (!token) throw new Error("Non authentifié");
 
-      const { data, error } = await supabase
-        .from("sheets_config")
-        .insert({
-          name: config.name,
-          sheet_url: config.sheet_url,
-          sheet_gid: config.sheet_gid || "0",
-          country: config.country || "",
-          team_id: config.team_id || null,
-          column_mapping: config.column_mapping || {
-            clientName: "A",
-            phone: "B",
-            city: "C",
-            address: "D",
-            product: "E",
-            quantity: "F",
-            price: "G",
-            comments: "H",
-            orderDate: "I",
-            country: "J",
-          },
-          created_by: profile.id,
-        })
-        .select()
-        .single();
+      const res = await fetch("/api/sheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(config),
+      });
 
-      if (error) throw error;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
       return data;
     },
     onSuccess: () => {
@@ -70,8 +56,17 @@ export function useDeleteSheetConfig() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("sheets_config").delete().eq("id", id);
-      if (error) throw error;
+      const token = await getToken();
+      if (!token) throw new Error("Non authentifié");
+
+      const res = await fetch("/api/sheets", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sheets-configs"] });
