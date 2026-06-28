@@ -38,16 +38,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (data) {
-      setProfile(data);
-      if (data.country) setCountryState(data.country);
-      return data;
+    const session = await supabase.auth.getSession();
+    const token = session?.data?.session?.access_token;
+    if (!token) return null;
+
+    const res = await fetch("/api/profile", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data) {
+        setProfile(data);
+        if (data.country) setCountryState(data.country);
+        return data;
+      }
     }
+
     // Nouvel utilisateur (Google OAuth) — créer le profil
     const { data: user } = await supabase.auth.getUser();
     if (user?.user?.email) {
@@ -61,15 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }),
       });
       if (res.ok) {
-        const { data: newProfile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
-        if (newProfile) {
-          setProfile(newProfile);
-          if (newProfile.country) setCountryState(newProfile.country);
-          return newProfile;
+        const session2 = await supabase.auth.getSession();
+        const token2 = session2?.data?.session?.access_token;
+        if (token2) {
+          const res2 = await fetch("/api/profile", {
+            headers: { Authorization: `Bearer ${token2}` },
+          });
+          if (res2.ok) {
+            const newProfile = await res2.json();
+            if (newProfile) {
+              setProfile(newProfile);
+              if (newProfile.country) setCountryState(newProfile.country);
+              return newProfile;
+            }
+          }
         }
       }
     }
