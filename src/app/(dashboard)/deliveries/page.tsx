@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase, isSupabaseReady } from "@/lib/supabase";
 import type { OrderRow, ProfileRow } from "@/types";
 import { ORDER_STATUSES, STATUS_LABELS, FINAL_STATUSES } from "@/types";
@@ -12,7 +12,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { useClaimDelivery, useUpdateDeliveryStatus } from "@/hooks/use-orders";
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatPhone, getTimeAgo } from "@/lib/utils";
-import { Truck, Package, MapPin, Phone, Clock, ShoppingBag } from "lucide-react";
+import { Truck, Package, MapPin, Phone, Clock, ShoppingBag, Calendar } from "lucide-react";
 
 export default function DeliveriesPage() {
   const { isAdmin, role, profile } = useAuth();
@@ -20,6 +20,8 @@ export default function DeliveriesPage() {
   const [readyOrders, setReadyOrders] = useState<OrderRow[]>([]);
   const [myDeliveries, setMyDeliveries] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const claimMutation = useClaimDelivery();
   const statusMutation = useUpdateDeliveryStatus();
 
@@ -32,41 +34,56 @@ export default function DeliveriesPage() {
 
   useEffect(() => {
     if (!isSupabaseReady) return;
-
     const load = async () => {
-      const [readyRes, mineRes] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("*")
-          .eq("ready_for_delivery", true)
-          .is("delivery_person_id", null)
-          .order("estimated_delivery_time", { ascending: true }),
-        supabase
-          .from("orders")
-          .select("*")
-          .eq("delivery_person_id", profile?.id || "")
-          .not("status", "in", `("${FINAL_STATUSES.join('","')}")`)
-          .order("claimed_by_delivery_at", { ascending: false }),
-      ]);
+      let readyQuery = supabase
+        .from("orders").select("*")
+        .eq("ready_for_delivery", true)
+        .is("delivery_person_id", null);
+      if (dateFrom) readyQuery = readyQuery.gte("created_at", new Date(dateFrom).toISOString());
+      if (dateTo) readyQuery = readyQuery.lte("created_at", new Date(dateTo + "T23:59:59").toISOString());
+      readyQuery = readyQuery.order("estimated_delivery_time", { ascending: true });
+
+      let mineQuery = supabase
+        .from("orders").select("*")
+        .eq("delivery_person_id", profile?.id || "")
+        .not("status", "in", `("${FINAL_STATUSES.join('","')}")`);
+      if (dateFrom) mineQuery = mineQuery.gte("claimed_by_delivery_at", new Date(dateFrom).toISOString());
+      if (dateTo) mineQuery = mineQuery.lte("claimed_by_delivery_at", new Date(dateTo + "T23:59:59").toISOString());
+      mineQuery = mineQuery.order("claimed_by_delivery_at", { ascending: false });
+
+      const [readyRes, mineRes] = await Promise.all([readyQuery, mineQuery]);
       setReadyOrders((readyRes.data || []) as OrderRow[]);
       setMyDeliveries((mineRes.data || []) as OrderRow[]);
       setLoading(false);
     };
-
     load();
-
     const channel = supabase
       .channel("deliveries-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, load)
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
-  }, [profile?.id]);
+  }, [profile?.id, dateFrom, dateTo]);
 
   return (
     <div>
       <Header title="Livraisons" />
-      <div className="p-4 lg:p-6 space-y-8">
+      <div className="p-4 lg:p-6 space-y-4">
+        {/* Filtres date */}
+        <div className="flex items-center gap-3 text-sm">
+          <Calendar className="h-4 w-4 text-gray-500 shrink-0" />
+          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setLoading(true); }}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white w-40" />
+          <span className="text-gray-500">—</span>
+          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setLoading(true); }}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white w-40" />
+          {(dateFrom || dateTo) && (
+            <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); setLoading(true); }}>
+              Réinitialiser
+            </Button>
+          )}
+        </div>
+
+        <div className="space-y-8">
         {/* Commandes prêtes à livrer */}
         <section>
           <div className="flex items-center gap-2 mb-4">
@@ -134,6 +151,7 @@ export default function DeliveriesPage() {
         </section>
       </div>
     </div>
+  </div>
   );
 }
 
