@@ -107,7 +107,9 @@ export default function UsersPage() {
   };
 
   const changeRole = async (profile: ProfileRow) => {
-    const newRole = profile.role === "admin" ? "closer" : "admin";
+    const roles: UserRole[] = ["admin", "closer", "delivery_person"];
+    const idx = roles.indexOf(profile.role);
+    const newRole = roles[(idx + 1) % roles.length];
     await fetch("/api/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -243,6 +245,7 @@ export default function UsersPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="closer">Closer</SelectItem>
+                      <SelectItem value="delivery_person">Livreur</SelectItem>
                       <SelectItem value="admin">Administrateur</SelectItem>
                     </SelectContent>
                   </Select>
@@ -268,8 +271,8 @@ export default function UsersPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-white truncate">{p.display_name}</span>
-                        <Badge variant={p.role === "super_admin" ? "blue" : p.role === "admin" ? "blue" : "default"} className="shrink-0">
-                          {p.role === "super_admin" ? "Super Admin" : p.role === "admin" ? "Admin" : "Closer"}
+                        <Badge variant={p.role === "super_admin" ? "blue" : p.role === "admin" ? "blue" : p.role === "delivery_person" ? "default" : "default"} className="shrink-0">
+                          {p.role === "super_admin" ? "Super Admin" : p.role === "admin" ? "Admin" : p.role === "delivery_person" ? "Livreur" : "Closer"}
                         </Badge>
                         {!p.active && <Badge variant="red" className="shrink-0">Inactif</Badge>}
                         {p.country && (

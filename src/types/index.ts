@@ -1,4 +1,4 @@
-export type UserRole = "super_admin" | "admin" | "closer";
+export type UserRole = "super_admin" | "admin" | "closer" | "delivery_person";
 export type OrderStatus =
   | "nouvelle"
   | "confirmée"
@@ -43,6 +43,10 @@ export interface OrderRow {
   sheet_row_id: string | null;
   country: string;
   organization_id: string | null;
+  delivery_person_id: string | null;
+  ready_for_delivery: boolean;
+  estimated_delivery_time: string | null;
+  claimed_by_delivery_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -13,6 +13,7 @@ import {
   FileSpreadsheet,
   Menu,
   Globe,
+  Truck,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -23,7 +24,9 @@ import { supabase, isSupabaseReady } from "@/lib/supabase";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isAdmin, logout, profile, country, setCountry } = useAuth();
+  const { isAdmin, role, logout, profile, country, setCountry } = useAuth();
+  const isCloser = role === "closer";
+  const isDeliveryPerson = role === "delivery_person";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [countries, setCountries] = useState<string[]>([]);
 
@@ -41,16 +44,17 @@ export function Sidebar() {
   }, [isAdmin]);
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Boîte de réception", href: "/inbox", icon: Inbox },
-    { name: "Commandes", href: "/orders", icon: Package },
-    { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet },
-    { name: "Statistiques", href: "/stats", icon: BarChart3 },
-    { name: "Utilisateurs", href: "/users", icon: Users, adminOnly: true },
-    { name: "Profil", href: "/profile", icon: UserCircle },
+    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, show: true },
+    { name: "Boîte de réception", href: "/inbox", icon: Inbox, show: isAdmin || isCloser },
+    { name: "Commandes", href: "/orders", icon: Package, show: isAdmin || isCloser },
+    { name: "Livraisons", href: "/deliveries", icon: Truck, show: isAdmin || isDeliveryPerson },
+    { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet, show: isAdmin },
+    { name: "Statistiques", href: "/stats", icon: BarChart3, show: isAdmin || isCloser },
+    { name: "Utilisateurs", href: "/users", icon: Users, show: isAdmin },
+    { name: "Profil", href: "/profile", icon: UserCircle, show: true },
   ];
 
-  const links = navigation.filter((item) => !item.adminOnly || isAdmin);
+  const links = navigation.filter((item) => item.show);
 
   const NavItems = ({ mobile }: { mobile?: boolean }) => (
     <>

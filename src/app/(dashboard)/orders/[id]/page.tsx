@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useOrder, useClaimOrder, useUpdateOrderStatus, useAddNote } from "@/hooks/use-orders";
+import { useOrder, useClaimOrder, useUpdateOrderStatus, useAddNote, useMarkReadyForDelivery, useClaimDelivery, useUpdateDeliveryStatus } from "@/hooks/use-orders";
 import { useAuth } from "@/providers/auth-provider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,20 +13,41 @@ import type { OrderStatus, NoteEntry, HistoryEntry } from "@/types";
 import { formatCurrency, formatDateTime, formatPhone, getTimeAgo } from "@/lib/utils";
 import {
   Phone, Copy, Map, ArrowLeft, ShoppingBag,
-  History, StickyNote, User, Send, Calendar, Clock, ChevronDown,
+  History, StickyNote, User, Send, Calendar, Clock, ChevronDown, Truck, CheckCircle2,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { orderNoteSchema, type OrderNoteFormData } from "@/lib/validations";
+import { useState, useEffect } from "react";
+import { supabase, isSupabaseReady } from "@/lib/supabase";
 
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { data: order, isLoading, error } = useOrder(params.id as string);
-  const { profile, isAdmin } = useAuth();
+  const { profile, isAdmin, role } = useAuth();
   const claimMutation = useClaimOrder();
   const statusMutation = useUpdateOrderStatus();
   const addNoteMutation = useAddNote();
+  const markReadyMutation = useMarkReadyForDelivery();
+  const claimDeliveryMutation = useClaimDelivery();
+  const deliveryStatusMutation = useUpdateDeliveryStatus();
+  const [estimatedTime, setEstimatedTime] = useState("");
+  const [deliveryPersonName, setDeliveryPersonName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (order?.delivery_person_id && isSupabaseReady) {
+      supabase
+        .from("profiles")
+        .select("display_name")
+        .eq("id", order.delivery_person_id)
+        .single()
+        .then(({ data }) => {
+          const d = data as { display_name: string } | null;
+          if (d) setDeliveryPersonName(d.display_name);
+        });
+    }
+  }, [order?.delivery_person_id]);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<OrderNoteFormData>({
     resolver: zodResolver(orderNoteSchema),
@@ -57,12 +78,20 @@ export default function OrderDetailPage() {
   const isOwner = order.claimed_by === profile?.id;
   const canModify = (isOwner || isAdmin) && !isFinal;
   const canClaim = !order.claimed_by && !isFinal;
+  const isDeliveryPerson = role === "delivery_person";
+  const canClaimDelivery = order.ready_for_delivery && !order.delivery_person_id && isDeliveryPerson;
+  const isMyDelivery = order.delivery_person_id === profile?.id;
+  const canUpdateDelivery = isMyDelivery && !isFinal;
   const phoneFormatted = formatPhone(order.phone);
   const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(order.address + ", " + order.city)}`;
 
   const onAddNote = (data: OrderNoteFormData) => {
     addNoteMutation.mutate({ orderId: order.id, content: data.content }, { onSuccess: () => reset() });
   };
+
+  const deliveryActions = ORDER_STATUSES.filter(
+    (s) => s !== order.status && ["livrée", "refusée", "injoignable", "faux_numéro"].includes(s)
+  );
 
   const history: HistoryEntry[] = order.order_history || [];
   const notes: NoteEntry[] = order.order_notes || [];
@@ -137,38 +166,50 @@ export default function OrderDetailPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4" />
-                  Actions rapides
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <a href={`tel:${phoneFormatted}`}>
-                    <Button variant="success" size="sm" className="lg:hidden"><Phone className="mr-1 h-4 w-4" /> Appel</Button>
-                    <Button variant="success" className="hidden lg:inline-flex"><Phone className="mr-2 h-4 w-4" /> Appeler</Button>
-                  </a>
-                  <Button variant="outline" size="sm" className="lg:hidden" onClick={() => navigator.clipboard.writeText(order.phone)}>
-                    <Copy className="mr-1 h-4 w-4" /> Copier
-                  </Button>
-                  <Button variant="outline" className="hidden lg:inline-flex" onClick={() => navigator.clipboard.writeText(order.phone)}>
-                    <Copy className="mr-2 h-4 w-4" /> Copier le numéro
-                  </Button>
-                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline" size="sm" className="lg:hidden"><Map className="mr-1 h-4 w-4" /> Maps</Button>
-                    <Button variant="outline" className="hidden lg:inline-flex"><Map className="mr-2 h-4 w-4" /> Google Maps</Button>
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
+            {!isDeliveryPerson && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ShoppingBag className="h-4 w-4" />
+                    Actions rapides
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={`tel:${phoneFormatted}`}>
+                      <Button variant="success" size="sm" className="lg:hidden"><Phone className="mr-1 h-4 w-4" /> Appel</Button>
+                      <Button variant="success" className="hidden lg:inline-flex"><Phone className="mr-2 h-4 w-4" /> Appeler</Button>
+                    </a>
+                    <Button variant="outline" size="sm" className="lg:hidden" onClick={() => navigator.clipboard.writeText(order.phone)}>
+                      <Copy className="mr-1 h-4 w-4" /> Copier
+                    </Button>
+                    <Button variant="outline" className="hidden lg:inline-flex" onClick={() => navigator.clipboard.writeText(order.phone)}>
+                      <Copy className="mr-2 h-4 w-4" /> Copier le numéro
+                    </Button>
+                    <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" size="sm" className="lg:hidden"><Map className="mr-1 h-4 w-4" /> Maps</Button>
+                      <Button variant="outline" className="hidden lg:inline-flex"><Map className="mr-2 h-4 w-4" /> Google Maps</Button>
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {canClaim && (
               <Card>
                 <CardContent className="p-6">
                   <Button onClick={() => claimMutation.mutate(order.id)} disabled={claimMutation.isPending} className="w-full">
                     Prendre en charge cette commande
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {canClaimDelivery && (
+              <Card>
+                <CardContent className="p-6">
+                  <Button onClick={() => claimDeliveryMutation.mutate(order.id)} disabled={claimDeliveryMutation.isPending} className="w-full">
+                    <Truck className="mr-2 h-4 w-4" /> Prendre en charge la livraison
                   </Button>
                 </CardContent>
               </Card>
@@ -192,6 +233,79 @@ export default function OrderDetailPage() {
                         {STATUS_LABELS[status]}
                       </Button>
                     ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {canUpdateDelivery && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Mettre à jour la livraison
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {deliveryActions.length === 0 ? (
+                      <p className="text-sm text-gray-500">Aucune action disponible</p>
+                    ) : deliveryActions.map((status) => (
+                      <Button key={status} variant={status === "livrée" ? "success" : "outline"} size="sm"
+                        onClick={() => deliveryStatusMutation.mutate({ orderId: order.id, newStatus: status as OrderStatus })}
+                        disabled={deliveryStatusMutation.isPending}
+                      >
+                        {STATUS_LABELS[status]}
+                      </Button>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Closer: Marquer prêt pour livraison */}
+            {isOwner && !order.ready_for_delivery && !isFinal && !isDeliveryPerson && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-amber-500" />
+                    Préparer pour livraison
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm text-gray-400">Horaire estimé de livraison (optionnel)</label>
+                      <Input
+                        type="datetime-local"
+                        value={estimatedTime}
+                        onChange={(e) => setEstimatedTime(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      onClick={() => markReadyMutation.mutate({ orderId: order.id, estimatedTime: estimatedTime || undefined })}
+                      disabled={markReadyMutation.isPending}
+                      className="w-full"
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Marquer comme prête pour livraison
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Closer: A déjà marqué prête */}
+            {isOwner && order.ready_for_delivery && !isFinal && !isDeliveryPerson && (
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <div>
+                    <p className="text-sm text-emerald-400 font-medium">Commande prête pour livraison</p>
+                    {order.estimated_delivery_time && (
+                      <p className="text-xs text-gray-500">Horaire prévu : {new Date(order.estimated_delivery_time).toLocaleString("fr-FR")}</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -237,13 +351,35 @@ export default function OrderDetailPage() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <User className="h-4 w-4" />
-                    Prise en charge
+                    Pris en charge par
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-white font-medium">{order.claimed_by}</p>
                   {order.claimed_at && (
                     <p className="text-xs text-gray-500 mt-1">Depuis {getTimeAgo(order.claimed_at)}</p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {order.delivery_person_id && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Livraison
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-white font-medium">{deliveryPersonName || "Livreur"}</p>
+                  {order.claimed_by_delivery_at && (
+                    <p className="text-xs text-gray-500 mt-1">Pris en charge {getTimeAgo(order.claimed_by_delivery_at)}</p>
+                  )}
+                  {order.estimated_delivery_time && (
+                    <p className="text-xs text-amber-400 mt-1">
+                      Horaire prévu : {new Date(order.estimated_delivery_time).toLocaleString("fr-FR")}
+                    </p>
                   )}
                 </CardContent>
               </Card>

@@ -52,7 +52,7 @@ export function Header({
       <div className="flex items-center gap-2 text-sm">
         <span className="hidden lg:inline text-gray-400">{profile?.display_name}</span>
         <span className="rounded-md bg-gray-800 px-2 py-0.5 text-xs text-gray-500">
-          {profile?.role === "admin" ? "Admin" : "Closer"}
+          {profile?.role === "admin" ? "Admin" : profile?.role === "delivery_person" ? "Livreur" : "Closer"}
         </span>
       </div>
     </header>

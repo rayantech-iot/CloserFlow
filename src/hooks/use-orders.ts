@@ -222,6 +222,122 @@ export function useAddNote() {
   });
 }
 
+export function useClaimDelivery() {
+  const queryClient = useQueryClient();
+  const { profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      if (!profile) throw new Error("Non autorisé");
+
+      const { data: orderData } = await supabase
+        .from("orders")
+        .select("delivery_person_id, ready_for_delivery")
+        .eq("id", orderId)
+        .single();
+
+      const order = orderData as { delivery_person_id: string | null; ready_for_delivery: boolean } | null;
+      if (!order) throw new Error("Commande introuvable");
+      if (!order.ready_for_delivery) throw new Error("Cette commande n'est pas prête pour la livraison");
+      if (order.delivery_person_id) throw new Error("Cette commande est déjà prise en charge par un livreur");
+
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          delivery_person_id: profile.id,
+          claimed_by_delivery_at: new Date().toISOString(),
+        })
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      await supabase.from("order_history").insert({
+        order_id: orderId,
+        user_id: profile.id,
+        user_name: profile.display_name,
+        action: `${profile.display_name} prend en charge la livraison`,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useUpdateDeliveryStatus() {
+  const queryClient = useQueryClient();
+  const { profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      newStatus,
+    }: {
+      orderId: string;
+      newStatus: OrderStatus;
+    }) => {
+      if (!profile) throw new Error("Non autorisé");
+
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: newStatus })
+        .eq("id", orderId)
+        .eq("delivery_person_id", profile.id);
+
+      if (error) throw error;
+
+      await supabase.from("order_history").insert({
+        order_id: orderId,
+        user_id: profile.id,
+        user_name: profile.display_name,
+        action: `${profile.display_name} livre la commande — statut: "${newStatus}"`,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useMarkReadyForDelivery() {
+  const queryClient = useQueryClient();
+  const { profile } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      estimatedTime,
+    }: {
+      orderId: string;
+      estimatedTime?: string;
+    }) => {
+      if (!profile) throw new Error("Non autorisé");
+
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          ready_for_delivery: true,
+          estimated_delivery_time: estimatedTime || null,
+        })
+        .eq("id", orderId)
+        .eq("claimed_by", profile.id);
+
+      if (error) throw error;
+
+      await supabase.from("order_history").insert({
+        order_id: orderId,
+        user_id: profile.id,
+        user_name: profile.display_name,
+        action: `${profile.display_name} marque la commande comme prête pour livraison`,
+        details: estimatedTime ? `Horaire estimé: ${new Date(estimatedTime).toLocaleString("fr-FR")}` : null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
 export function useSearchOrders(query: string) {
   return useQuery({
     queryKey: ["search-orders", query],
