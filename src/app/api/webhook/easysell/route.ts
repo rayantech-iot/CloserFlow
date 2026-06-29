@@ -8,6 +8,17 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
+export async function GET() {
+  return new Response(
+    `<html><body style="font-family:sans-serif;padding:40px;background:#0a0a0a;color:#ccc">
+      <h1 style="color:#fff">Webhook EasySell ✓</h1>
+      <p>Utilise POST pour envoyer des commandes depuis EasySell.</p>
+      <p>Exemple : <code>curl -X POST -H "Content-Type: application/json" -d '{"client_name":"Jean","phone":"242..."}' ${process.env.NEXT_PUBLIC_SITE_URL || "https://closer-flow-alpha.vercel.app"}/api/webhook/easysell</code></p>
+    </body></html>`,
+    { headers: { "Content-Type": "text/html;charset=utf-8" } }
+  );
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
