@@ -14,6 +14,7 @@ import {
   Menu,
   Globe,
   Truck,
+  Phone,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -45,10 +46,12 @@ export function Sidebar() {
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, show: true },
-    { name: "Boîte de réception", href: "/inbox", icon: Inbox, show: isAdmin || isCloser },
     { name: "Commandes", href: "/orders", icon: Package, show: isAdmin || isCloser },
+    { name: "Boîte de réception", href: "/inbox", icon: Inbox, show: isCloser },
+    { name: "À rappeler", href: "/reminders", icon: Phone, show: isCloser },
     { name: "Livraisons", href: "/deliveries", icon: Truck, show: isAdmin || isDeliveryPerson },
     { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet, show: isAdmin },
+    { name: "Équipes", href: "/teams", icon: Globe, show: isAdmin },
     { name: "Statistiques", href: "/stats", icon: BarChart3, show: isAdmin || isCloser },
     { name: "Utilisateurs", href: "/users", icon: Users, show: isAdmin },
     { name: "Profil", href: "/profile", icon: UserCircle, show: true },

@@ -13,7 +13,7 @@ import type { OrderStatus, NoteEntry, HistoryEntry } from "@/types";
 import { formatCurrency, formatDateTime, formatPhone, getTimeAgo } from "@/lib/utils";
 import {
   Phone, Copy, Map, ArrowLeft, ShoppingBag,
-  History, StickyNote, User, Send, Calendar, Clock, ChevronDown, Truck, CheckCircle2,
+  History, StickyNote, User, Send, Calendar, Clock, ChevronDown, Truck, CheckCircle2, UserPlus,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,20 +34,22 @@ export default function OrderDetailPage() {
   const deliveryStatusMutation = useUpdateDeliveryStatus();
   const [estimatedTime, setEstimatedTime] = useState("");
   const [deliveryPersonName, setDeliveryPersonName] = useState<string | null>(null);
+  const [claimedByName, setClaimedByName] = useState<string | null>(null);
+  const [externalDelivery, setExternalDelivery] = useState("");
+  const [savingExternal, setSavingExternal] = useState(false);
 
   useEffect(() => {
-    if (order?.delivery_person_id && isSupabaseReady) {
-      supabase
-        .from("profiles")
-        .select("display_name")
-        .eq("id", order.delivery_person_id)
-        .single()
-        .then(({ data }) => {
-          const d = data as { display_name: string } | null;
-          if (d) setDeliveryPersonName(d.display_name);
-        });
+    if (!order || !isSupabaseReady) return;
+    if (order.delivery_person_id) {
+      supabase.from("profiles").select("display_name").eq("id", order.delivery_person_id).single()
+        .then(({ data }) => setDeliveryPersonName((data as any)?.display_name || null));
     }
-  }, [order?.delivery_person_id]);
+    if (order.claimed_by) {
+      supabase.from("profiles").select("display_name").eq("id", order.claimed_by).single()
+        .then(({ data }) => setClaimedByName((data as any)?.display_name || null));
+    }
+    setExternalDelivery(order.external_delivery_name || "");
+  }, [order?.delivery_person_id, order?.claimed_by, order?.external_delivery_name]);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<OrderNoteFormData>({
     resolver: zodResolver(orderNoteSchema),
@@ -355,7 +357,7 @@ export default function OrderDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-white font-medium">{order.claimed_by}</p>
+                  <p className="text-sm text-white font-medium">{claimedByName || "En attente"}</p>
                   {order.claimed_at && (
                     <p className="text-xs text-gray-500 mt-1">Depuis {getTimeAgo(order.claimed_at)}</p>
                   )}
@@ -381,6 +383,46 @@ export default function OrderDetailPage() {
                       Horaire prévu : {new Date(order.estimated_delivery_time).toLocaleString("fr-FR")}
                     </p>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {(isOwner || isAdmin) && !order.delivery_person_id && order.country === "Congo" && order.city === "Pointe Noire" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-blue-400" />
+                    Livreur externe (Pointe Noire)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nom du livreur"
+                      value={externalDelivery}
+                      onChange={(e) => setExternalDelivery(e.target.value)}
+                    />
+                    <Button size="sm" disabled={savingExternal || !externalDelivery}
+                      onClick={async () => {
+                        setSavingExternal(true);
+                        await supabase.from("orders").update({ external_delivery_name: externalDelivery }).eq("id", order.id);
+                        setSavingExternal(false);
+                      }}
+                    >
+                      OK
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {(isOwner || isAdmin) && order.external_delivery_name && (
+              <Card>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <UserPlus className="h-5 w-5 text-blue-400 shrink-0" />
+                  <div>
+                    <p className="text-sm text-blue-400 font-medium">Livreur externe</p>
+                    <p className="text-sm text-white">{order.external_delivery_name}</p>
+                  </div>
                 </CardContent>
               </Card>
             )}

@@ -47,6 +47,7 @@ export interface OrderRow {
   ready_for_delivery: boolean;
   estimated_delivery_time: string | null;
   claimed_by_delivery_at: string | null;
+  external_delivery_name: string | null;
   created_at: string;
   updated_at: string;
 }
