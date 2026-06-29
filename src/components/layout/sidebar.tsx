@@ -52,7 +52,7 @@ export function Sidebar() {
     { name: "Livraisons", href: "/deliveries", icon: Truck, show: isAdmin || isDeliveryPerson },
     { name: "Google Sheets", href: "/sheets", icon: FileSpreadsheet, show: isAdmin },
     { name: "Équipes", href: "/teams", icon: Globe, show: isAdmin },
-    { name: "Statistiques", href: "/stats", icon: BarChart3, show: isAdmin || isCloser },
+    { name: "Statistiques", href: "/stats", icon: BarChart3, show: true },
     { name: "Utilisateurs", href: "/users", icon: Users, show: isAdmin },
     { name: "Profil", href: "/profile", icon: UserCircle, show: true },
   ];
