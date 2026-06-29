@@ -7,6 +7,22 @@ import { useAuth } from "@/providers/auth-provider";
 
 const LS_KEY = "closerflow_last_seen";
 
+function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function showDesktopNotification(order: OrderRow) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  new Notification(`Nouvelle commande : ${order.client_name}`, {
+    body: `${order.city || ""} — ${order.source || ""} — ${order.status}`.trim(),
+    icon: "/favicon.ico",
+    tag: order.id,
+  });
+}
+
 export function useNotifications() {
   const { profile } = useAuth();
   const [count, setCount] = useState(0);
@@ -31,14 +47,30 @@ export function useNotifications() {
     setCount(list.length);
   }, [profile?.id]);
 
+  const onNewOrder = useCallback(async () => {
+    const since = new Date(Date.now() - 30000).toISOString();
+    const { data } = await supabase
+      .from("orders")
+      .select("id,client_name,status,city,created_at,source")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const newOrder = data?.[0] as OrderRow | undefined;
+    if (newOrder) {
+      showDesktopNotification(newOrder);
+    }
+    refresh();
+  }, [refresh]);
+
   useEffect(() => {
+    requestNotificationPermission();
     refresh();
     const channel = supabase
       .channel("notif-changes")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, refresh)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, onNewOrder)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [refresh]);
+  }, [refresh, onNewOrder]);
 
   const markRead = () => {
     localStorage.setItem(LS_KEY, Date.now().toString());
