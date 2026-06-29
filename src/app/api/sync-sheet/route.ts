@@ -236,8 +236,24 @@ export async function POST(request: Request) {
       .in("sheet_row_id", sheetRowIds);
 
     const existingSet = new Set(existing?.map((e: any) => e.sheet_row_id) || []);
-    const newOrders = orders.filter((o) => !existingSet.has(o.sheet_row_id));
-    const skipped = orders.length - newOrders.length;
+    let newOrders = orders.filter((o) => !existingSet.has(o.sheet_row_id));
+    let skipped = orders.length - newOrders.length;
+
+    // 7b. Déduplication par contenu (même nom + téléphone + produit depuis ce sheet)
+    const sourceName = `Google Sheets: ${config.name}`;
+    const { data: recent } = await supabase
+      .from("orders")
+      .select("client_name, phone, product, price")
+      .eq("source", sourceName)
+      .gte("created_at", new Date(Date.now() - 86400000 * 7).toISOString());
+
+    const recentSet = new Set(
+      (recent || []).map((o: any) => `${o.client_name}|${o.phone}|${o.product}|${o.price}`)
+    );
+
+    const beforeContentDedup = newOrders.length;
+    newOrders = newOrders.filter((o) => !recentSet.has(`${o.client_name}|${o.phone}|${o.product}|${o.price}`));
+    skipped += beforeContentDedup - newOrders.length;
 
     if (newOrders.length === 0) {
       await supabase
