@@ -228,18 +228,29 @@ export async function POST(request: Request) {
       });
     }
 
-    // 7. Vérifier les doublons (sheet_row_id déjà existant)
-    const sheetRowIds = orders.map((o) => o.sheet_row_id);
+    // 7. Déduplication dans le même lot (lignes identiques dans le CSV)
+    const seen = new Set<string>();
+    const uniqueOrders: typeof orders = [];
+    for (const o of orders) {
+      const key = `${o.client_name}|${o.phone}|${o.product}|${o.price}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniqueOrders.push(o);
+    }
+    const intraSkipped = orders.length - uniqueOrders.length;
+
+    // 8. Vérifier les doublons (sheet_row_id déjà existant)
+    const sheetRowIds = uniqueOrders.map((o) => o.sheet_row_id);
     const { data: existing } = await supabase
       .from("orders")
       .select("sheet_row_id")
       .in("sheet_row_id", sheetRowIds);
 
     const existingSet = new Set(existing?.map((e: any) => e.sheet_row_id) || []);
-    let newOrders = orders.filter((o) => !existingSet.has(o.sheet_row_id));
-    let skipped = orders.length - newOrders.length;
+    let newOrders = uniqueOrders.filter((o) => !existingSet.has(o.sheet_row_id));
+    let skipped = intraSkipped + (uniqueOrders.length - newOrders.length);
 
-    // 7b. Déduplication par contenu (même nom + téléphone + produit depuis ce sheet)
+    // 8b. Déduplication par contenu (même nom + téléphone + produit depuis ce sheet)
     const sourceName = `Google Sheets: ${config.name}`;
     const { data: recent } = await supabase
       .from("orders")
@@ -269,14 +280,14 @@ export async function POST(request: Request) {
       });
     }
 
-    // 8. Insérer les nouvelles commandes
+    // 9. Insérer les nouvelles commandes
     const { error: insertError } = await supabase.from("orders").insert(newOrders);
 
     if (insertError) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    // 9. Logger dans l'historique
+    // 10. Logger dans l'historique
     await supabase.from("order_history").insert(
       newOrders.map((o: any) => ({
         order_id: o.id,
@@ -285,7 +296,7 @@ export async function POST(request: Request) {
       }))
     );
 
-    // 10. Notifier WhatsApp si configuré
+    // 11. Notifier WhatsApp si configuré
     if (process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID && newOrders.length > 0) {
       const first = newOrders[0];
       const msg = `🆕 ${newOrders.length} nouvelle(s) commande(s) CloserFlow\n\nEx: ${first.client_name} — ${first.city}\n${first.product} | ${first.price} FCFA\n${first.phone}`;
@@ -307,7 +318,7 @@ export async function POST(request: Request) {
       ).catch(() => {});
     }
 
-    // 11. Mettre à jour le timestamp de synchro
+    // 12. Mettre à jour le timestamp de synchro
     await supabase
       .from("sheets_config")
       .update({ last_synced: new Date().toISOString() })
