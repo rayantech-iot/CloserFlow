@@ -269,7 +269,29 @@ export async function POST(request: Request) {
       }))
     );
 
-    // 10. Mettre à jour le timestamp de synchro
+    // 10. Notifier WhatsApp si configuré
+    if (process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID && newOrders.length > 0) {
+      const first = newOrders[0];
+      const msg = `🆕 ${newOrders.length} nouvelle(s) commande(s) CloserFlow\n\nEx: ${first.client_name} — ${first.city}\n${first.product} | ${first.price} FCFA\n${first.phone}`;
+      fetch(
+        `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: process.env.WHATSAPP_GROUP_ID || process.env.WHATSAPP_PHONE_ID,
+            type: "text",
+            text: { body: msg },
+          }),
+        }
+      ).catch(() => {});
+    }
+
+    // 11. Mettre à jour le timestamp de synchro
     await supabase
       .from("sheets_config")
       .update({ last_synced: new Date().toISOString() })
